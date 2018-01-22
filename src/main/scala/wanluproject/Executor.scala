@@ -8,8 +8,7 @@ import org.apache.spark.sql.functions.broadcast
 
 class Executor(datalogProgram: DatalogProgram, spark: SparkSession) {
 
-
-  def loadFact() = {
+ /* def loadFact() = {
     if (datalogProgram.hasFact == true) {
       // println("hasFact")
       val name: Seq[String] = datalogProgram.factList.map(_._1).toSeq
@@ -27,18 +26,18 @@ class Executor(datalogProgram: DatalogProgram, spark: SparkSession) {
       }
 
     }
-  }
+  }*/
 
 
-  val hasfilter: Boolean = datalogProgram.qr.hasConstraint
+ // val hasfilter: Boolean = datalogProgram.qr.hasConstraint
 
-  def evaluate(): Unit = {
+  /*def evaluate(): Unit = {
 
     loadFact()
 
-   //j spark.catalog.listTables().show()
+   // spark.catalog.listTables().show()
 
-    datalogProgram.order
+   // datalogProgram.order
 
     var ruleStack = datalogProgram.ruleOrder
 
@@ -53,9 +52,9 @@ class Executor(datalogProgram: DatalogProgram, spark: SparkSession) {
       evaluateRule(datalogProgram.clauses(n).asInstanceOf[Rule], isRecursive)
       ruleStack = ruleStack.drop(1)
 
-    }
+    }*/
 
-    if (hasfilter == true) {
+   /* if (hasfilter == true) {
 
       val all = spark.table(datalogProgram.qr.name)
 
@@ -63,25 +62,25 @@ class Executor(datalogProgram: DatalogProgram, spark: SparkSession) {
 
       result.createOrReplaceTempView(datalogProgram.qr.name)
 
-    }
+    }*/
 
-  }
+  //}
 
 
-  def evaluateRule(rule: Rule, isRecursive: Boolean): Unit = {
+ /* def evaluateRule(rule: Rule, isRecursive: Boolean): Unit = {
 
     println("evaluate:" + rule.head.name)
 
     isRecursive match {
 
       case false =>
-        val predicate: Seq[DataFrame] = rule.predicates.map(Util.giveAlias(_, spark))
+        val predicate: Seq[DataFrame] = rule.bodies.map(Util.giveAlias(_, spark))
         var result: DataFrame = Util.project(rule, predicate.reduce(Util.naturalJoin(_, _))).distinct()
         result.createOrReplaceTempView(rule.head.name)
 
       case true =>
 
-        for (p <- rule.predicates) {
+        for (p <- rule.bodies) {
           if (p.name.equals(rule.head.name)) p.name = "delta"
         }
 
@@ -94,7 +93,7 @@ class Executor(datalogProgram: DatalogProgram, spark: SparkSession) {
 
         while (delta.count > 0) {
 
-          val predicateR: Seq[DataFrame] = rule.predicates.map(Util.giveAlias(_, spark))
+          val predicateR: Seq[DataFrame] = rule.bodies.map(Util.giveAlias(_, spark))
 
           delta = Util.project(rule, predicateR.reduce(Util.naturalJoin(_, _))).except(all).distinct().cache()
 
@@ -116,7 +115,7 @@ class Executor(datalogProgram: DatalogProgram, spark: SparkSession) {
     }
 
 
-  }
+  }*/
 
 
 }

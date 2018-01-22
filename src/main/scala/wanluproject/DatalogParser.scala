@@ -16,9 +16,11 @@ object DatalogParser extends RegexParsers {
 
   // override def skipWhitespace: Boolean = true
 
-  def datalogProgram: Parser[DatalogProgram] = clauseList ~ query ^^ {
+  /*def datalogProgram: Parser[DatalogProgram] = clauseList ~ query ^^ {
     case rl ~ qr => DatalogProgram(qr, rl)
-  }
+  }*/
+
+  def datalogProgram: Parser[DatalogProgram] = clauseList ^^ { DatalogProgram(_)}
 
   def query: Parser[Query] = predicate <~ "?" ^^ {
     Query(_)

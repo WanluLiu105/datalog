@@ -3,6 +3,7 @@ package wanluproject
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.SparkSession
 
+
 object Util {
 
 
@@ -12,23 +13,21 @@ object Util {
     val rightCols = right.columns.toSet
     val commonCols = leftCols.intersect(rightCols).toSeq
 
-    if (commonCols.isEmpty)
+    //println("join")
+    if (commonCols.isEmpty) {
+     // left.crossJoin(right).show()
       left.crossJoin(right)
-    else
+    }
+    else {
+     // left.join(right, commonCols).show()
       left.join(right, commonCols)
+    }
 
   }
 
- /* def giveAlias(p: Predicate): DataFrame = {
-    //println("give alias"+ p.name)
-    Database.relations.get(p.name) match {
-      case Some(df) => df.toDF(p.argArray: _*)
-    }
-  }*/
-
   def giveAlias(p: Predicate, spark:SparkSession) ={
-     val df = spark.table(p.name)
-     df.toDF(p.argArray: _*)
+      val df = spark.table(p.name)
+      df.toDF(p.argArray: _*)
   }
 
   def project(rule: Rule, df: DataFrame): DataFrame = {
@@ -36,6 +35,15 @@ object Util {
     val cols: List[String] = rule.head.argArray.toList
     df.select(cols.head, cols.tail: _*)
 
+  }
+
+  def union(left: DataFrame, right: DataFrame): DataFrame ={
+
+    val cols: Seq[String] = right.columns.toSeq
+    val left1 = left.toDF(cols: _*)
+    val result = left1.union(right)   // distinct?
+    //result.show()
+    result
   }
 
   def filter(query: Query, df: DataFrame): DataFrame = {

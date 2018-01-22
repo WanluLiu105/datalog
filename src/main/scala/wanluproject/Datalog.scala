@@ -7,13 +7,16 @@ import org.apache.spark.sql.catalog
  class DatalogContext(program: String, sparkSession: SparkSession){
 
 
-  def datalog(program: String) = {
+  def datalog(program: String, method: String) = {
 
      val datalogProgram = parse(program)
 
-     val executor = new Executor(datalogProgram, sparkSession)
+    val evaluator = new Evaluator(datalogProgram,sparkSession)
 
-      executor.evaluate()
+    method match{
+      case naive => evaluator.naive()
+      case semi_naive => evaluator.semi_naive()
+    }
 
   }
 
@@ -22,12 +25,6 @@ import org.apache.spark.sql.catalog
       case Right(datalogProgram) => datalogProgram
     }
   }
-
- /* def registerRelation(name: String) = {
-    sparkSession.catalog.listTables().toString
-
-  } */
-
 
 
 }

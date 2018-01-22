@@ -7,20 +7,21 @@ import org.apache.spark.sql.types._
 
 trait DatalogAST
 
-case class DatalogProgram(qr: Query, clauses: Seq[Clause]) extends DatalogAST {
+case class DatalogProgram(clauses: Seq[Clause]) extends DatalogAST {
 
   var ruleOrder: List[(String, Int, String)] = Nil
 
-  // val idbList = clauses.filter(_.isInstanceOf[Rule]).map(_.asInstanceOf[Rule]).map(_.head.name)
+  val ruleList = clauses.filter(_.isInstanceOf[Rule]).map(_.asInstanceOf[Rule])
 
-  //  val fList = clauses.filter(_.isInstanceOf[Fact]).map(_.asInstanceOf[Fact]).map(_.name).toSet
+  val idbList: List[(String, StructType)] = ruleList.map(p=>(p.head.name, p.headSchema)).toSet.toList
 
-  //  val edbList = Database.relations.map(_._1).toSeq
+  val fList: List[(String, StructType)]= clauses.filter(_.isInstanceOf[Fact]).map(_.asInstanceOf[Fact]).map(f=>(f.name, f.schema)).toSet.toList
 
-  def order = {
+  val edbList = (ruleList.flatMap(_.bodyList).toSet -- idbList).toList
 
+ /* def order = {
     ruleForPredicate(qr.name)
-  }
+  }*/
 
   val hasFact: Boolean = !clauses.filter(_.isInstanceOf[Fact]).isEmpty
   val factList: Map[String, Seq[(String, StructType, Row)]] =
@@ -29,17 +30,18 @@ case class DatalogProgram(qr: Query, clauses: Seq[Clause]) extends DatalogAST {
   // val ruleList: Seq[Rule] = clauses.filter(_.isInstanceOf[Rule]).map(_.asInstanceOf[Rule])
 
   //begin from 0  the list of rule( ruleHead, ruleLineNumber, ruleIfIsIterate)
-  val lineOfClause: Seq[(String, Int, String)] = clauses.zipWithIndex.filter(_._1.isInstanceOf[Rule]).
-    map(pair => (pair._1.asInstanceOf[Rule].head.name, pair._2, pair._1.asInstanceOf[Rule].recursive)) ++
-    clauses.zipWithIndex.filter(_._1.isInstanceOf[Fact]).map(pair => (pair._1.asInstanceOf[Fact].name, pair._2, "fact"))
 
-  val clauseIndex: Map[String, Seq[(String, Int, String)]] = lineOfClause.groupBy(_._1)
+  val lineOfRule: Seq[(String, Int, Boolean)] = clauses.zipWithIndex.filter(_._1.isInstanceOf[Rule]).
+    map(pair => (pair._1.asInstanceOf[Rule].head.name, pair._2, pair._1.asInstanceOf[Rule].isRecursive))
+  //++ clauses.zipWithIndex.filter(_._1.isInstanceOf[Fact]).map(pair => (pair._1.asInstanceOf[Fact].name, pair._2, "fact"))
+
+  val ruleIndex: Map[String, Seq[(String, Int, Boolean)]] = lineOfRule.groupBy(_._1)
 
 
   //(name, line number, if is recursive)
-  def ruleForPredicate(name: String): Any = {
+ /* def ruleForPredicate(name: String): Any = {
 
-    clauseIndex.get(name) match {
+    ruleIndex.get(name) match {
       case Some(index) =>
         index.filter(_._3 == "base").isEmpty && index.filter(_._3 == "fact").isEmpty match {
           case true =>
@@ -86,7 +88,7 @@ case class DatalogProgram(qr: Query, clauses: Seq[Clause]) extends DatalogAST {
       case None => SemanticException("can't find rule for it")
     }
 
-  }
+  }*/
 
   /*  def predicateBoundCheck = {
       if ((ruleList.flatMap(_.unknown).toSet -- idbList -- edbList -- fList).isEmpty == true) true
@@ -94,6 +96,7 @@ case class DatalogProgram(qr: Query, clauses: Seq[Clause]) extends DatalogAST {
     }*/
 
 }
+
 
 case class Query(predicate: Predicate) extends DatalogAST {
 
@@ -110,6 +113,7 @@ case class Query(predicate: Predicate) extends DatalogAST {
 
 trait Clause extends DatalogAST
 
+
 case class Fact(id: Identifier, args: Seq[Constant]) extends Clause {
 
   val name = id.value
@@ -122,16 +126,21 @@ case class Fact(id: Identifier, args: Seq[Constant]) extends Clause {
 
 }
 
+
 case class Rule(head: Predicate, body: Seq[Literal]) extends Clause {
 
-  val predicates: Seq[Predicate] = body.filter(_.isInstanceOf[Predicate]).map(_.asInstanceOf[Predicate])
+  val bodies: Seq[Predicate] = body.filter(_.isInstanceOf[Predicate]).map(_.asInstanceOf[Predicate])
 
-  val predicateList: Seq[String] = body.filter(_.isInstanceOf[Predicate]).map(_.asInstanceOf[Predicate].name)
+  val bodyList: Seq[String] = body.filter(_.isInstanceOf[Predicate]).map(_.asInstanceOf[Predicate].name)
+
+  val headSchema: StructType = StructType(head.argArray.zipWithIndex.map(p => StructField(p._2.toString, StringType, true)))
 
   val unknown: Seq[String] = body.filter(_.isInstanceOf[Predicate]).map(_.asInstanceOf[Predicate]).filter(_.isBase == false).
     filter(!_.name.equals(head.name)).map(_.name)
 
-  val isRecursive: Boolean = !predicateList.filter(_.equals(head.name)).isEmpty
+  var hasIdbSubgoal = false
+
+  val isRecursive: Boolean = !bodyList.filter(_.equals(head.name)).isEmpty
 
   val recursive = if (isRecursive) "recursive" else "base"
 
@@ -146,6 +155,7 @@ case class Rule(head: Predicate, body: Seq[Literal]) extends Clause {
 
 trait Literal extends DatalogAST
 
+
 case class Predicate(id: Identifier, args: Seq[Term]) extends Literal {
 
   var name = id.value
@@ -159,7 +169,9 @@ case class Predicate(id: Identifier, args: Seq[Term]) extends Literal {
 
 }
 
+
 trait Expr extends Literal
+
 
 case class Condition(lhs: Expr, op: String, rhs: Expr) extends Expr
 
