@@ -1,11 +1,8 @@
 package wanluproject
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.execution.aggregate.HashMapGenerator
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
-
-import scala.collection.mutable.ArrayBuffer
 
 
 class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
@@ -13,6 +10,7 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
   def loadFact() = {
     if (datalogProgram.hasFact == true) {
       val names: Seq[String] = datalogProgram.factList.map(_._1).toSeq
+      println("f name:" + names.mkString(","))
       val schema: Seq[StructType] = datalogProgram.factList.map(p => p._2.head._2).toSeq
       val value: Seq[RDD[Row]] = datalogProgram.factList.map(p => spark.sparkContext.parallelize(p._2.map(_._3))).toSeq
       for (i <- 0 until names.length) {
@@ -33,9 +31,7 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
 
   val idb = datalogProgram.idbList
   val idb_array: Array[String] = idb.map(_._1).toArray
-  val edb = datalogProgram.edbList
-
-  //var evaluateRules = datalogProgram.ruleIndex
+  //val edb = datalogProgram.edbList
 
   def ifIDB(rule: Rule): Unit = {
     val ary = datalogProgram.idbList.map(_._1).toArray
@@ -51,13 +47,15 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
     evaluateRulesLine
   }
 
-
   def semi_naive(): Unit = {
+
+    val start = System.currentTimeMillis()
 
     val evaluateRules = testIDB()
 
     //idb = empty
     for (i <- idb) {
+      println( i._1)
       val df = spark.createDataFrame(spark.sparkContext.emptyRDD[Row], i._2)
       df.createOrReplaceTempView(i._1)
       val name = "delta" + i._1
@@ -78,32 +76,25 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
 
 
     while (!fixpoint) {
+      println("iter:" + iter)
 
       for (i <- 0 until idb.length) {
 
         var rules = Seq[Rule]()
         iter match {
           case 0 =>
-            //val rulesIndice: Seq[Int] = evaluateRules(idb(i)._1).filter(_._3.equals(false)).map(_._2)
             val rulesIndice: Seq[Int] = evaluateRules(idb(i)._1).map(_._2)
             rules = for (i <- rulesIndice) yield datalogProgram.clauses(i).asInstanceOf[Rule]
-            fixpoints(i) = semi_naive_evaluate_idb(rules, spark)
-           /* if(rules.isEmpty == true) {
-              val name = idb(i)._1
-              val delta_name = "delta" + name
-              val delta = spark.table(name).cache()
-              delta.createOrReplaceTempView(delta_name)
-              fixpoints(i) = false
-            }*/
+            fixpoints(i) = semi_naive_evaluate_idb(rules, spark,iter)
           case 1 =>
             val rulesIndice: Seq[Int] = evaluateRules(idb(i)._1).filter(_._3.equals(true)).map(_._2)
             rules = for (i <- rulesIndice) yield datalogProgram.clauses(i).asInstanceOf[Rule]
             val rewriteRules = semi_naive_rewrite(rules)
             recursiveRuleLine(i) = rewriteRules
-            fixpoints(i) = semi_naive_evaluate_idb(rewriteRules, spark)
+            fixpoints(i) = semi_naive_evaluate_idb(rewriteRules, spark,iter)
           case _ =>
             val rules = recursiveRuleLine(i)
-            fixpoints(i) = semi_naive_evaluate_idb(rules, spark)
+            fixpoints(i) = semi_naive_evaluate_idb(rules, spark,iter)
         }
 
       }
@@ -111,26 +102,27 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
       fixpoint = if (fixpoints.filter(_.equals(false)).isEmpty == true) true else false
       iter = iter + 1
     }
+    println("semi_naive:" + (System.currentTimeMillis() - start))
   }
 
+  def semi_naive_evaluate_idb(rules: Seq[Rule], spark: SparkSession,iter: Int): Boolean = {
 
-  def semi_naive_evaluate_idb(rules: Seq[Rule], spark: SparkSession): Boolean = {
-
+    val start = System.currentTimeMillis()
     var fixpoint = true
     if (rules.isEmpty == true) fixpoint
     else {
       val name = rules(0).head.name
       val dfs = rules.map(evaluate_rule(_, spark))
-      val delta: DataFrame = dfs.reduce((l, r) => Util.union(l, r)).except(spark.table(name)).cache()
-      //println("delta:")
+      val delta: DataFrame = dfs.reduce((l, r) => Util.union(l, r)).except(spark.table(name))
+     // if( iter != 0 && iter%3 == 0) delta.checkpoint(true) else delta.cache
+      delta.cache()
+      println("partition:" + delta.rdd.getNumPartitions)
+      println("delta:" + name)
       //delta.show()
       val delta_name = "delta" + name
-      val all = spark.table(name).union(delta).distinct().cache()
-      //spark.catalog.listTables().show()
-      //spark.table(delta_name).unpersist()
-      //spark.table(name).unpersist()
-      // println("all:")
-      //all.show()
+      val all = spark.table(name).union(delta).distinct()
+    //  if( iter != 0 && iter%3 == 0) all.checkpoint(true) else all.cache
+      all.cache()
       delta.createOrReplaceTempView(delta_name)
       all.createOrReplaceTempView(name)
       if (delta.count() != 0) {
@@ -138,6 +130,7 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
         all.createOrReplaceTempView(name)
         fixpoint = false
       }
+      println("evaluate idb: " + (System.currentTimeMillis() - start))
       fixpoint
     }
   }
@@ -166,6 +159,7 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
 
     //idb = empty
     for (i <- idb) {
+      println("idbempty:" + i._1)
       val df = spark.createDataFrame(spark.sparkContext.emptyRDD[Row], i._2)
       df.createOrReplaceTempView(i._1)
     }
@@ -203,13 +197,12 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
           fixpoints(i) = false
       }
 
-     // println(fixpoints.mkString(","))
+      // println(fixpoints.mkString(","))
       fixpoint = if (fixpoints.filter(_.equals(false)).isEmpty == true) true else false
-     // println(fixpoint + " iter:" + iter)
+      // println(fixpoint + " iter:" + iter)
       iter = iter + 1
     }
   }
-
 
   def naive_evaluate_idb(rules: Seq[Rule], spark: SparkSession): Boolean = {
 
@@ -230,14 +223,26 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
   def evaluate_rule(rule: Rule, spark: SparkSession): DataFrame = {
 
     val predicates: Seq[DataFrame] = rule.bodies.map(Util.giveAlias(_, spark)).filter(_.isInstanceOf[DataFrame]).map(_.asInstanceOf[DataFrame])
+    val selectCondition = rule.selectCondition
+    val cols: List[String] = rule.head.argArray.toList
+    val joined = predicates.reduce(Util.naturalJoin(_, _))
+    val selected = if(selectCondition.isEmpty == false) Util.select(selectCondition, joined) else joined
     var result: DataFrame = {
       predicates.length match {
-        case 0 => spark.emptyDataFrame
-        case _ => Util.project(rule, predicates.reduce(Util.naturalJoin(_, _)))
+        case 0 =>
+          spark.emptyDataFrame
+        case _ =>
+          Util.project(cols, selected)
       }
     }
     result
   }
+
+  /*def magic_set() ={
+    val ms = new MagicSet(datalogProgram)
+    val program = ms.magic_rewrite()
+   // println(program.clauses.mkString("\n"))*/
+
 
 
 }

@@ -20,7 +20,10 @@ object DatalogParser extends RegexParsers {
     case rl ~ qr => DatalogProgram(qr, rl)
   }*/
 
-  def datalogProgram: Parser[DatalogProgram] = clauseList ^^ { DatalogProgram(_)}
+  def datalogProgram: Parser[DatalogProgram] = clauseList ~ opt(query)  ^^ {
+    case cl ~ None => DatalogProgram(cl,None)
+    case cl ~ Some(qr) => DatalogProgram(cl,Some(qr))
+  }
 
   def query: Parser[Query] = predicate <~ "?" ^^ {
     Query(_)
@@ -50,13 +53,13 @@ object DatalogParser extends RegexParsers {
     case id ~ _ ~ ts ~ _ => Predicate(id, ts)
   }
 
-  def condition: Parser[Expr] = termExpr ~ ("==" | "!=" | ">" | "<" | ">=" | "<=" | "=") ~ termExpr ^^ {
+  def condition: Parser[Expr] = variable ~ ("==" | "!=" | ">" | "<" | ">=" | "<=" ) ~ term ^^ {
     case t1 ~ sym ~ t2 => Condition(t1, sym, t2)
   }
 
-  def termExpr: Parser[Expr] = term ~ ("+" | "-") ~ term ^^ {
+ /* def termExpr: Parser[Expr] = term ~ ("+" | "-") ~ term ^^ {
     case t1 ~ sym ~ t2 => TermExpr(t1, sym, t2)
-  } | term
+  } | term*/
 
   def terms: Parser[Seq[Term]] = rep1sep(term, ",")
 

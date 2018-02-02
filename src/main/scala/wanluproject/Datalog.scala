@@ -9,13 +9,22 @@ import org.apache.spark.sql.catalog
 
   def datalog(program: String, method: String) = {
 
-     val datalogProgram = parse(program)
+    val datalogProgram = parse(program)
 
     val evaluator = new Evaluator(datalogProgram,sparkSession)
+    val magic = new MagicSet(datalogProgram,sparkSession)
 
     method match{
-      case naive => evaluator.naive()
-      case semi_naive => evaluator.semi_naive()
+      case naive =>
+        val evaluator = new Evaluator(datalogProgram,sparkSession)
+        evaluator.naive()
+      case semi_naive =>
+        val evaluator = new Evaluator(datalogProgram,sparkSession)
+        evaluator.semi_naive()
+      case magic_set =>
+
+
+
     }
 
   }
