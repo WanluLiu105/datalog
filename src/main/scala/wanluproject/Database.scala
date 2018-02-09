@@ -1,9 +1,6 @@
 package wanluproject
 
-import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.types.StructType
-
-import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.mutable.ArrayBuffer
 
 object Database {
 
@@ -21,7 +18,7 @@ object Database {
 
   val relationList = ArrayBuffer[String]()
 
-  def addRelation(name:String) = {
+  def addRelation(name: String) = {
     relationList += name
 
   }

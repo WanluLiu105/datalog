@@ -9,8 +9,6 @@ trait DatalogAST
 
 case class DatalogProgram(clauses: Seq[Clause], query: Option[Query]) extends DatalogAST {
 
-  //var ruleOrder: List[(String, Int, String)] = Nil
-
   val hasQuery = query.isEmpty
 
   val ruleList = clauses.filter(_.isInstanceOf[Rule]).map(_.asInstanceOf[Rule])
@@ -19,78 +17,22 @@ case class DatalogProgram(clauses: Seq[Clause], query: Option[Query]) extends Da
 
   val fList: List[(String, StructType)] = clauses.filter(_.isInstanceOf[Fact]).map(_.asInstanceOf[Fact]).map(f => (f.name, f.schema)).toSet.toList
 
-  // val edbList = (ruleList.flatMap(_.bodyList).toSet -- idbList).toList
-
-  /* def order = {
-     ruleForPredicate(qr.name)
-   }*/
-
   val hasFact: Boolean = !clauses.filter(_.isInstanceOf[Fact]).isEmpty
+
   val factList: Map[String, Seq[(String, StructType, Row)]] =
     clauses.filter(_.isInstanceOf[Fact]).map(_.asInstanceOf[Fact]).map(f => (f.name, f.schema, f.value)).groupBy(_._1)
 
   // val ruleList: Seq[Rule] = clauses.filter(_.isInstanceOf[Rule]).map(_.asInstanceOf[Rule])
 
   //begin from 0  the list of rule( ruleHead, ruleLineNumber, ruleIfIsIterate)
-
   /* val lineOfRule: Seq[(String, Int, Boolean)] = clauses.zipWithIndex.filter(_._1.isInstanceOf[Rule]).
      map(pair => (pair._1.asInstanceOf[Rule].head.name, pair._2, pair._1.asInstanceOf[Rule].isRecursive))*/
   //++ clauses.zipWithIndex.filter(_._1.isInstanceOf[Fact]).map(pair => (pair._1.asInstanceOf[Fact].name, pair._2, "fact"))
 
   // val ruleIndex: Map[String, Seq[(String, Int, Boolean)]] = lineOfRule.groupBy(_._1)
 
-
   //(name, line number, if is recursive)
-  /* def ruleForPredicate(name: String): Any = {
 
-     ruleIndex.get(name) match {
-       case Some(index) =>
-         index.filter(_._3 == "base").isEmpty && index.filter(_._3 == "fact").isEmpty match {
-           case true =>
-             SemanticException("no base")
-           case false =>
-             index.length match {
-
-               case 1 =>
-                 if (!ruleOrder.contains(index.head)) {
-                   if (index.head._3 != "fact") {
-                     ruleOrder = index.head :: ruleOrder
-                     if (clauses(index.head._2).asInstanceOf[Rule].unknown.isEmpty == false)
-                       clauses(index.head._2).asInstanceOf[Rule].unknown.map(ruleForPredicate(_))
-                   }
-                 }
-
-               case _ =>
-                 if (!ruleOrder.contains(index.head)) {
-                   val num = index.length
-                   if ((index.filter(_._3 == "recursive").length == 1) && (index.filter(_._3 == "base").length == 1)) {
-                     val i = index.indexWhere(_._3 == "recursive")
-                     val j = index.indexWhere(_._3 == "base")
-                     ruleOrder = index(j) :: (index(i) :: ruleOrder)
-
-                     if (clauses(index(j)._2).asInstanceOf[Rule].unknown.isEmpty == false)
-                       clauses(index(j)._2).asInstanceOf[Rule].unknown.map(ruleForPredicate(_))
-                     if (clauses(index(i)._2).asInstanceOf[Rule].unknown.isEmpty == false) {
-                       clauses(index(i)._2).asInstanceOf[Rule].unknown.map(ruleForPredicate(_))
-                     }
-                   }
-                   else if (index.filter(_._3 == "recursive").length == 1 && index.filter(_._3 == "fact").length == (num - 1)) {
-                     val i = index.indexWhere(_._3 == "recursive")
-                     if (!ruleOrder.contains(index(i)))
-                       ruleOrder = index(i) :: ruleOrder
-                     if (clauses(index(i)._2).asInstanceOf[Rule].unknown.isEmpty == false)
-                       clauses(index(i)._2).asInstanceOf[Rule].unknown.map(ruleForPredicate(_))
-                   }
-                   else SemanticException
-                 }
-
-
-             }
-         }
-       case None => SemanticException("can't find rule for it")
-     }
-
-   }*/
 
   /*  def predicateBoundCheck = {
       if ((ruleList.flatMap(_.unknown).toSet -- idbList -- edbList -- fList).isEmpty == true) true
@@ -108,21 +50,20 @@ case class Query(predicate: Predicate) extends DatalogAST {
   val free: Seq[Variable] = predicate.args.filter(_.isInstanceOf[Variable]).map(_.asInstanceOf[Variable])
   val bindIndex: Seq[Int] = predicate.args.zipWithIndex.filter(_._1.isInstanceOf[Constant]).map(_._2)
 
-  var queryV= Seq[Variable]()
-  for( i <- 0 until predicate.args.length){
-    if(predicate.args(i).isInstanceOf[Variable]) queryV = queryV :+ predicate.args(i).asInstanceOf[Variable]
+  var queryV = Seq[Variable]()
+  for (i <- 0 until predicate.args.length) {
+    if (predicate.args(i).isInstanceOf[Variable]) queryV = queryV :+ predicate.args(i).asInstanceOf[Variable]
     else queryV = queryV :+ Variable("Variable_" + i)
   }
 
   val queryP = Predicate(predicate.id, queryV)
-  val queryCondition = for( i <- 0 until predicate.args.length; if (predicate.args(i).isInstanceOf[Constant]))
-        yield Condition(Variable("Variable_" + i), "==", predicate.args(i).asInstanceOf[Constant])
+  val queryCondition = for (i <- 0 until predicate.args.length; if (predicate.args(i).isInstanceOf[Constant]))
+    yield Condition(Variable("Variable_" + i), "==", predicate.args(i).asInstanceOf[Constant])
 
-  val rwBody :Seq[Literal] = Seq(queryP) ++ queryCondition
+  val rwBody: Seq[Literal] = Seq(queryP) ++ queryCondition
 }
 
 trait Clause extends DatalogAST
-
 
 case class Fact(id: Identifier, args: Seq[Constant]) extends Clause {
 
@@ -136,12 +77,9 @@ case class Fact(id: Identifier, args: Seq[Constant]) extends Clause {
 
 }
 
-
 case class Rule(head: Predicate, body: Seq[Literal]) extends Clause {
 
   val bodies: Seq[Predicate] = body.filter(_.isInstanceOf[Predicate]).map(_.asInstanceOf[Predicate])
-
-  //val bodyList: Seq[String] = body.filter(_.isInstanceOf[Predicate]).map(_.asInstanceOf[Predicate].name)
 
   val headSchema: StructType = StructType(head.argArray.zipWithIndex.map(p => StructField(p._2.toString, StringType, true)))
 
@@ -152,7 +90,7 @@ case class Rule(head: Predicate, body: Seq[Literal]) extends Clause {
 
   //val headVarBoundCheck: Boolean = if ((head.argArray.toSet -- bodyVariable).isEmpty) true else false
 
-   val selectCondition: Seq[Expr] = body.filter(_.isInstanceOf[Expr]).map(_.asInstanceOf[Expr])
+  val selectCondition: Seq[Expr] = body.filter(_.isInstanceOf[Expr]).map(_.asInstanceOf[Expr])
 
 }
 

@@ -16,13 +16,10 @@ object DatalogParser extends RegexParsers {
 
   // override def skipWhitespace: Boolean = true
 
-  /*def datalogProgram: Parser[DatalogProgram] = clauseList ~ query ^^ {
-    case rl ~ qr => DatalogProgram(qr, rl)
-  }*/
 
-  def datalogProgram: Parser[DatalogProgram] = clauseList ~ opt(query)  ^^ {
-    case cl ~ None => DatalogProgram(cl,None)
-    case cl ~ Some(qr) => DatalogProgram(cl,Some(qr))
+  def datalogProgram: Parser[DatalogProgram] = clauseList ~ opt(query) ^^ {
+    case cl ~ None => DatalogProgram(cl, None)
+    case cl ~ Some(qr) => DatalogProgram(cl, Some(qr))
   }
 
   def query: Parser[Query] = predicate <~ "?" ^^ {
@@ -33,7 +30,6 @@ object DatalogParser extends RegexParsers {
 
   def clauseList: Parser[Seq[Clause]] = rep1(clause)
 
-  // def ruleList: Parser[Seq[Rule]] = rep1(rule)
 
   def rule: Parser[Rule] = predicate ~ ":-" ~ literalList ~ "." ^^ {
     case l ~ _ ~ ll ~ _ => Rule(l, ll)
@@ -53,13 +49,13 @@ object DatalogParser extends RegexParsers {
     case id ~ _ ~ ts ~ _ => Predicate(id, ts)
   }
 
-  def condition: Parser[Expr] = variable ~ ("==" | "!=" | ">" | "<" | ">=" | "<=" ) ~ term ^^ {
+  def condition: Parser[Expr] = variable ~ ("==" | "!=" | ">" | "<" | ">=" | "<=") ~ term ^^ {
     case t1 ~ sym ~ t2 => Condition(t1, sym, t2)
   }
 
- /* def termExpr: Parser[Expr] = term ~ ("+" | "-") ~ term ^^ {
-    case t1 ~ sym ~ t2 => TermExpr(t1, sym, t2)
-  } | term*/
+  /* def termExpr: Parser[Expr] = term ~ ("+" | "-") ~ term ^^ {
+     case t1 ~ sym ~ t2 => TermExpr(t1, sym, t2)
+   } | term*/
 
   def terms: Parser[Seq[Term]] = rep1sep(term, ",")
 
