@@ -25,7 +25,7 @@ object test {
 
     val start = System.currentTimeMillis()
     val spark = SparkSession.builder().appName("test").config("spark.master", "local").config("spark.sql.shuffle.partition", 10).getOrCreate()
-    spark.sparkContext.setCheckpointDir("/tmp")
+    spark.sparkContext.setCheckpointDir("/usr/local/Cellar/spark-2.2.0/checkpoint/")
 
 
     import org.apache.log4j.{Level, Logger}
@@ -57,7 +57,7 @@ object test {
     broadcast(par)
 
     val path = Seq(Path("1", "2"), Path("2", "3"), Path("3", "4"), Path("4", "5"), Path("5","6"),
-      Path("6","7"), Path("7","8"), Path("8","9"), Path("9","10")).toDF()
+      Path("6","7"), Path("7","8"), Path("8","9"), Path("9","10"),Path("10","11"),Path("11","12"), Path("12","13"),Path("13","14"),Path("14","15"), Path("15","16"), Path("16","17")).toDF()
 
     path.createOrReplaceTempView("path")
       //broadcast(path)
@@ -99,7 +99,7 @@ object test {
 
 
     val datalogProgram: DatalogProgram =
-      DatalogParser(s6) match {
+      DatalogParser(s3) match {
         case Right(dp) => dp
         case Left(ex) => throw ex
       }
@@ -111,11 +111,11 @@ object test {
     exe.semi_naive()
     // magic.magic_set()
     //  spark.catalog.listTables()
-    spark.table("sgc").show()
+    spark.table("tc").show()
     // spark.table("query").show()
     //spark.table("samegen").show()
 
-    println("time:" + ((System.currentTimeMillis() - start) / 1000.0)) // + "," + spark.table("tc").count() )
+    println("time:" + ((System.currentTimeMillis() - start) / 1000.0) +"," + spark.table("tc").count() )
 
   }
 
