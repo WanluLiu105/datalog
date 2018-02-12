@@ -117,7 +117,7 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
     //idb = empty
     for (i <- idb) {
       val df = spark.createDataFrame(spark.sparkContext.emptyRDD[Row], i._2)
-      df.cache().createOrReplaceTempView(i._1)
+      df.createOrReplaceTempView(i._1)
     }
 
     loadFact()
@@ -125,7 +125,7 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
     for (i <- idb) {
       val delta = spark.table(i._1)
       val name = "d_" + i._1
-      delta.cache().createOrReplaceTempView(name)
+      delta.createOrReplaceTempView(name)
     }
 
     var fixpoint = false
@@ -177,7 +177,7 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
             rules = for (i <- rulesIndice) yield datalogProgram.clauses(i).asInstanceOf[Rule]
             val rewriteRules = semi_naive_rewrite(rules)
             recursiveRules(i) = rewriteRules
-             //val rulesToEvaluate = recursiveRules(i)
+            // val rulesToEvaluate = recursiveRules(i)
             val rulesToEvaluate = recursiveRules(i).filter(toEvaluate(_, pre_fixpoints))
             fixpoints(i) = semi_naive_evaluate_idb(rulesToEvaluate, spark)
           case _ =>
@@ -186,23 +186,6 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
             fixpoints(i) = semi_naive_evaluate_idb(rulesToEvaluate, spark)
         }
       }
-
-      for( i <- idb){
-        if( !spark.table("d_" + i._1).head(1).isEmpty ) {
-          val all = spark.table(i._1).union(spark.table("d_" + i._1)).distinct().cache()
-          all.createOrReplaceTempView(i._1)
-        }
-      }
-
-      if( iter %7== 0  ){
-        val start = System.currentTimeMillis()
-        val delta = spark.table("d_tc").checkpoint(true)
-        delta.createOrReplaceTempView("d_tc")
-        val all = spark.table("tc").checkpoint(true)
-        all.createOrReplaceTempView("tc")
-        println("checkpoint:" + (System.currentTimeMillis() - start ))
-      }
-
       println(fixpoints.mkString(","))
       fixpoint = if (fixpoints.filter(_.equals(false)).isEmpty == true) true else false
       iter = iter + 1
@@ -214,29 +197,32 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
   def semi_naive_evaluate_idb(rules: Seq[Rule], spark: SparkSession): Boolean = {
 
     val start = System.currentTimeMillis()
+
     var fixpoint = true
+
     if (rules.isEmpty == true) fixpoint
     else {
-      //1. name
       val name = rules(0).head.name
       val delta_name = "d_" + name
-      //2. evaluate rule
+
       val dfs = rules.map(evaluate_rule(_, spark)).filter(_.head(1).isEmpty == false)
 
-      //3. update delta
       if (dfs.isEmpty == false) {
-        val result: DataFrame = dfs.reduce((l, r) => Util.union(l, r)).cache()
-        val delta: DataFrame = result.except(spark.table(name)).cache()
-        if (delta.head(1).isEmpty == false ) {
+        val result: DataFrame = dfs.reduce((l, r) => Util.union(l, r)).distinct()
+
+        val delta: DataFrame = dfs.reduce((l, r) => Util.union(l, r)).except(spark.table(name)).cache()
+
+        //println(delta.explain())
+        if (delta.head(1).isEmpty == false ){
+
           delta.createOrReplaceTempView(delta_name)
+
+          val all = Util.union(delta,spark.table(name)).cache()
+          all.createOrReplaceTempView(name)
+
           fixpoint = false
         }
       }
-      else{
-        val delta = spark.emptyDataFrame.cache()
-        delta.createOrReplaceTempView(delta_name)
-      }
-
       println("evaluate idb: " + (System.currentTimeMillis() - start))
       fixpoint
     }
@@ -311,6 +297,7 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
     var fixpoint = true
     if (rules.isEmpty == true) fixpoint
     else {
+
       val name = rules(0).head.name
       val dfs =
         if (datalogProgram.fList.map(_._1).contains(name) == true)
@@ -319,7 +306,9 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
           rules.map(evaluate_rule(_, spark)).filter(_.head(1).isEmpty == false)
       if (dfs.isEmpty == false) {
         val result: DataFrame = dfs.reduce((l, r) => Util.union(l, r)).distinct().cache()
+        val exceptStart = System.currentTimeMillis()
         if (result.except(spark.table("pre_"+name)).head(1).isEmpty == false) {
+          println("time1:" + (System.currentTimeMillis() - exceptStart))
           result.createOrReplaceTempView(name)
           fixpoint = false
         }
