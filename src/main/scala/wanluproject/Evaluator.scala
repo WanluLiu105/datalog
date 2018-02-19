@@ -147,7 +147,7 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
           else
             edb_rules.map(evaluate_rule(_, spark)).filter(_.head(1).isEmpty == false)
 
-        val delta: DataFrame = dfs.reduce((l, r) => Util.union(l, r)).distinct().cache()
+        val delta: DataFrame = dfs.reduce((l, r) => Util.union(l, r)).cache()
         delta.createOrReplaceTempView(delta_name)
         val all = delta.cache()
         all.createOrReplaceTempView(name)
@@ -188,19 +188,14 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
       }
 
       for( i <- idb){
-        if( !spark.table("d_" + i._1).head(1).isEmpty ) {
-          val all = spark.table(i._1).union(spark.table("d_" + i._1)).distinct().cache()
-          all.createOrReplaceTempView(i._1)
+        val delta_name = "d_" + i._1
+        if( !spark.table(delta_name).head(1).isEmpty ) {
+          val start = System.currentTimeMillis()
+          val delta = spark.table(delta_name).checkpoint(true)
+          delta.createOrReplaceTempView(delta_name)
+          val all = Util.union(spark.table(i._1), spark.table("d_" + i._1)).checkpoint(true)
+          all.cache().createOrReplaceTempView(i._1)
         }
-      }
-
-      if( iter %7== 0  ){
-        val start = System.currentTimeMillis()
-        val delta = spark.table("d_tc").checkpoint(true)
-        delta.createOrReplaceTempView("d_tc")
-        val all = spark.table("tc").checkpoint(true)
-        all.createOrReplaceTempView("tc")
-        println("checkpoint:" + (System.currentTimeMillis() - start ))
       }
 
       println(fixpoints.mkString(","))
@@ -235,6 +230,7 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
       else{
         val delta = spark.emptyDataFrame.cache()
         delta.createOrReplaceTempView(delta_name)
+        delta.show()
       }
 
       println("evaluate idb: " + (System.currentTimeMillis() - start))
@@ -318,9 +314,10 @@ class Evaluator(datalogProgram: DatalogProgram, spark: SparkSession) {
         else
           rules.map(evaluate_rule(_, spark)).filter(_.head(1).isEmpty == false)
       if (dfs.isEmpty == false) {
-        val result: DataFrame = dfs.reduce((l, r) => Util.union(l, r)).distinct().cache()
+        val result: DataFrame = dfs.reduce((l, r) => Util.union(l, r)).cache()
         if (result.except(spark.table("pre_"+name)).head(1).isEmpty == false) {
-          result.createOrReplaceTempView(name)
+          val all = result.checkpoint(true) //local Checkpoint in 2.3.0
+          all.createOrReplaceTempView(name)
           fixpoint = false
         }
       }

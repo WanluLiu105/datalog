@@ -53,7 +53,7 @@ object Util {
     val start = System.currentTimeMillis()
     val cols: Seq[String] = right.columns.toSeq
     val left1 = left.toDF(cols: _*)
-    val result = left1.union(right) // distinct?
+    val result = left1.union(right).distinct()
     // println("union time:" + (System.currentTimeMillis() - start))
     result
   }

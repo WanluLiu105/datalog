@@ -24,8 +24,9 @@ object test {
 
 
     val start = System.currentTimeMillis()
-    val spark = SparkSession.builder().appName("test").config("spark.master", "local").config("spark.sql.shuffle.partition", 10).getOrCreate()
+    val spark = SparkSession.builder().appName("test").config("spark.master", "local").config("spark.memory.fraction","0.2").config("spark.memory.storageFraction","0.2").getOrCreate()
     spark.sparkContext.setCheckpointDir("/usr/local/Cellar/spark-2.2.0/checkpoint/")
+
 
 
     import org.apache.log4j.{Level, Logger}
@@ -99,23 +100,24 @@ object test {
 
 
     val datalogProgram: DatalogProgram =
-      DatalogParser(s3) match {
+      DatalogParser(s1) match {
         case Right(dp) => dp
         case Left(ex) => throw ex
       }
 
 
     println(datalogProgram)
+
     val exe = new Evaluator(datalogProgram, spark)
     //val magic = new MagicSet(datalogProgram,spark)
     exe.semi_naive()
     // magic.magic_set()
     //  spark.catalog.listTables()
-    spark.table("tc").show()
+   // spark.table("tc").show()
     // spark.table("query").show()
-    //spark.table("samegen").show()
+    spark.table("sgc").show()
 
-    println("time:" + ((System.currentTimeMillis() - start) / 1000.0) +"," + spark.table("tc").count() )
+    println("time:" + ((System.currentTimeMillis() - start) / 1000.0) +"," + spark.table("sgc").count() )
 
   }
 
